@@ -1,0 +1,4 @@
+rich>=13.9
+mutagen>=1.47
+spotapi>=1.2
+yt-dlp>=2024

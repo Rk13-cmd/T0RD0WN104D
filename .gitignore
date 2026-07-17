@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.cache
+.cover_cache/
+downloads/
+.history.json
