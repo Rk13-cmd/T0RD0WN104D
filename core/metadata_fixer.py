@@ -11,7 +11,7 @@ from rich import box
 from rich.progress import Progress, TextColumn, BarColumn
 from rich.prompt import Prompt, Confirm
 
-from core.cover import _search_itunes, _download_cover, CACHE_DIR
+from core.cover import _resolve_cover_url, _download_cover, CACHE_DIR
 from ui.interface import show_section_header
 
 console = Console()
@@ -327,9 +327,9 @@ def _fix_single_file(filepath):
     if not title:
         return False, "no se pudo identificar la canción"
 
-    result = _search_itunes(artist, title)
+    result = _resolve_cover_url(artist, title)
     if not result:
-        return False, "sin match en iTunes"
+        return False, "sin carátula disponible"
 
     try:
         _apply_metadata_fix(filepath, result)
@@ -344,9 +344,9 @@ def _recover_single(filepath):
     if not title:
         return False, "no se pudo identificar la canción"
 
-    result = _search_itunes(artist, title)
+    result = _resolve_cover_url(artist, title)
     if not result or not result.get("art_url"):
-        return False, "sin portada en iTunes"
+        return False, "sin portada disponible"
 
     try:
         cache_key = urllib.parse.quote(f"{result['artist']}_{result['track']}")
@@ -575,10 +575,10 @@ def fix_folder(folder_path, recursive=False):
                 progress.advance(task)
                 continue
 
-            result = _search_itunes(artist, title)
+            result = _resolve_cover_url(artist, title)
             if not result:
                 skipped += 1
-                console.print(f"  [dim]~ {filepath.name}: sin match en iTunes[/dim]")
+                console.print(f"  [dim]~ {filepath.name}: sin carátula disponible[/dim]")
                 progress.advance(task)
                 continue
 
