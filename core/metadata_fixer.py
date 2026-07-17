@@ -593,6 +593,7 @@ def fix_folder(folder_path, recursive=False):
 
             progress.advance(task)
 
+    progress.update(task, visible=False)
     console.print()
     summary = []
     if fixed:

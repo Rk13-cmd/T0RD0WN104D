@@ -390,6 +390,8 @@ def _converter_menu(download_dir):
 
             progress.advance(task)
 
+    progress.update(task, visible=False)
+
     # Results
     _clear()
     show_section_header("🔧 CONVERSIÓN COMPLETADA")
