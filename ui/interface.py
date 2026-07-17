@@ -10,6 +10,18 @@ from core.utils import FORMATS, VIDEO_FORMATS, format_duration
 
 console = Console()
 
+
+def prompt_ask(prompt_text, default=""):
+    """Replacement for Prompt.ask that avoids ^M echo in Termux."""
+    console.print(prompt_text, end=" ")
+    try:
+        val = input()
+    except (EOFError, KeyboardInterrupt):
+        return default
+    if not val and default != "":
+        return str(default)
+    return val if val else default
+
 def clear():
     os.system('clear')
     print('\033[3J', end='')

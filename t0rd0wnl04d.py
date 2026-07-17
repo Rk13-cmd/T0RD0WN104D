@@ -3,9 +3,9 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm
 
-from ui.interface import show_banner, show_menu, show_section_header, show_formats_table, show_video_formats_table, show_urls_table, show_search_results, config_menu, clear
+from ui.interface import show_banner, show_menu, show_section_header, show_formats_table, show_video_formats_table, show_urls_table, show_search_results, config_menu, clear, prompt_ask
 from core.downloader import single as download_single, playlist as download_playlist, batch as download_batch
 from core.video_downloader import single as video_single, playlist as video_playlist, batch as video_batch
 from core.spotify import import_from_spotify
@@ -30,7 +30,7 @@ def handle_menu():
     while True:
         show_banner()
         show_menu()
-        choice = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
+        choice = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
 
         # --- EXIT ---
         if choice == "12":
@@ -60,7 +60,7 @@ def handle_menu():
         if choice == "1":
             clear()
             show_section_header("PEGA EL LINK DE SPOTIFY")
-            spotify_url = Prompt.ask("  [bright_red]URL de Spotify[/bright_red]")
+            spotify_url = prompt_ask("  [bright_red]URL de Spotify[/bright_red]")
             if not spotify_url:
                 console.print("[red]URL requerida[/red]")
                 continue
@@ -91,7 +91,7 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
 
             only_titles = [t for t, _ in results]
             clear()
@@ -106,7 +106,7 @@ def handle_menu():
         if choice == "2":
             clear()
             show_section_header("BUSCAR EN YOUTUBE")
-            query = Prompt.ask("  [bright_red]Que quieres buscar?[/bright_red]")
+            query = prompt_ask("  [bright_red]Que quieres buscar?[/bright_red]")
             if not query:
                 console.print("[red]Busqueda vacia[/red]")
                 continue
@@ -119,7 +119,7 @@ def handle_menu():
                 continue
 
             show_search_results(results)
-            pick = Prompt.ask("  [bright_red]Numero a descargar[/bright_red] (ej: 1, 1-3, * = todos)", default="1")
+            pick = prompt_ask("  [bright_red]Numero a descargar[/bright_red] (ej: 1, 1-3, * = todos)", default="1")
 
             selected = []
             if pick.strip() == "*":
@@ -158,12 +158,12 @@ def handle_menu():
                 success = download_single(url, "3", None)
                 if not success and Confirm.ask("  Reintentar con otro formato?"):
                     show_formats_table()
-                    fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
+                    fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
                     download_single(url, fmt_key, None)
             else:
                 show_section_header("SELECCIONE FORMATO")
                 show_formats_table()
-                fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
+                fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
                 only_urls = [r["url"] for r in selected]
                 only_titles = [r["title"] for r in selected]
                 clear()
@@ -178,7 +178,7 @@ def handle_menu():
         if choice == "3":
             clear()
             show_section_header("INGRESE EL LINK")
-            url = Prompt.ask("  [bright_red]URL[/bright_red]")
+            url = prompt_ask("  [bright_red]URL[/bright_red]")
             if is_spotify_url(url):
                 console.print("[yellow]\u2192 Usa la opcion [bold]1[/bold] (Spotify) para links de Spotify[/yellow]")
                 continue
@@ -189,8 +189,8 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
-            custom_dir = Prompt.ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
+            custom_dir = prompt_ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
             out_dir = custom_dir.strip() or None
 
             clear()
@@ -198,7 +198,7 @@ def handle_menu():
             success = download_single(url, fmt_key, out_dir)
             if not success and Confirm.ask("  Reintentar con otro formato?"):
                 show_formats_table()
-                fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
+                fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
                 download_single(url, fmt_key, out_dir)
 
             if not Confirm.ask("\n  Descargar otro?"):
@@ -209,7 +209,7 @@ def handle_menu():
         if choice == "4":
             clear()
             show_section_header("INGRESE EL LINK DE LA LISTA")
-            url = Prompt.ask("  [bright_red]URL[/bright_red]")
+            url = prompt_ask("  [bright_red]URL[/bright_red]")
             if is_spotify_url(url):
                 console.print("[yellow]\u2192 Usa la opcion [bold]1[/bold] (Spotify) para links de Spotify[/yellow]")
                 continue
@@ -220,11 +220,11 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
-            custom_dir = Prompt.ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
+            custom_dir = prompt_ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
             out_dir = custom_dir.strip() or None
 
-            limit_input = Prompt.ask("  [bright_red]Cantidad de canciones[/bright_red] (Enter = todas)", default="")
+            limit_input = prompt_ask("  [bright_red]Cantidad de canciones[/bright_red] (Enter = todas)", default="")
             limit = int(limit_input) if limit_input.strip().isdigit() else None
 
             clear()
@@ -239,14 +239,14 @@ def handle_menu():
         if choice == "5":
             clear()
             show_section_header("INGRESE LOS LINKS")
-            folder_name = Prompt.ask("  [bright_red]Nombre de la carpeta[/bright_red]").strip()
+            folder_name = prompt_ask("  [bright_red]Nombre de la carpeta[/bright_red]").strip()
             if not folder_name:
                 folder_name = "Rafaga"
 
             urls = []
             i = 1
             while True:
-                inp = Prompt.ask(f"  [bright_red]Link {i}[/bright_red]").strip()
+                inp = prompt_ask(f"  [bright_red]Link {i}[/bright_red]").strip()
                 if inp.lower() == "y":
                     if not urls:
                         console.print("[red]Ingresa al menos un link[/red]")
@@ -259,7 +259,7 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="3")
 
             clear()
             download_batch(urls, fmt_key, folder_name, download_dir)
@@ -273,7 +273,7 @@ def handle_menu():
         if choice == "6":
             clear()
             show_section_header("INGRESE EL LINK")
-            url = Prompt.ask("  [bright_red]URL[/bright_red]")
+            url = prompt_ask("  [bright_red]URL[/bright_red]")
             if is_spotify_url(url):
                 console.print("[yellow]\u2192 Usa la opcion [bold]1[/bold] (Spotify) para links de Spotify[/yellow]")
                 continue
@@ -284,8 +284,8 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_video_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
-            custom_dir = Prompt.ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
+            custom_dir = prompt_ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
             out_dir = custom_dir.strip() or None
 
             clear()
@@ -293,7 +293,7 @@ def handle_menu():
             success = video_single(url, fmt_key, out_dir)
             if not success and Confirm.ask("  Reintentar con otra calidad?"):
                 show_video_formats_table()
-                fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
+                fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
                 video_single(url, fmt_key, out_dir)
 
             if not Confirm.ask("\n  Descargar otro?"):
@@ -304,7 +304,7 @@ def handle_menu():
         if choice == "7":
             clear()
             show_section_header("INGRESE EL LINK DE LA LISTA")
-            url = Prompt.ask("  [bright_red]URL[/bright_red]")
+            url = prompt_ask("  [bright_red]URL[/bright_red]")
             if is_spotify_url(url):
                 console.print("[yellow]\u2192 Usa la opcion [bold]1[/bold] (Spotify) para links de Spotify[/yellow]")
                 continue
@@ -315,11 +315,11 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_video_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
-            custom_dir = Prompt.ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
+            custom_dir = prompt_ask("  [bright_red]Directorio destino[/bright_red] (Enter para default)", default="")
             out_dir = custom_dir.strip() or None
 
-            limit_input = Prompt.ask("  [bright_red]Cantidad de videos[/bright_red] (Enter = todos)", default="")
+            limit_input = prompt_ask("  [bright_red]Cantidad de videos[/bright_red] (Enter = todos)", default="")
             limit = int(limit_input) if limit_input.strip().isdigit() else None
 
             clear()
@@ -334,14 +334,14 @@ def handle_menu():
         if choice == "8":
             clear()
             show_section_header("INGRESE LOS LINKS")
-            folder_name = Prompt.ask("  [bright_red]Nombre de la carpeta[/bright_red]").strip()
+            folder_name = prompt_ask("  [bright_red]Nombre de la carpeta[/bright_red]").strip()
             if not folder_name:
                 folder_name = "Videos"
 
             urls = []
             i = 1
             while True:
-                inp = Prompt.ask(f"  [bright_red]Link {i}[/bright_red]").strip()
+                inp = prompt_ask(f"  [bright_red]Link {i}[/bright_red]").strip()
                 if inp.lower() == "y":
                     if not urls:
                         console.print("[red]Ingresa al menos un link[/red]")
@@ -354,7 +354,7 @@ def handle_menu():
             clear()
             show_section_header("SELECCIONE FORMATO")
             show_video_formats_table()
-            fmt_key = Prompt.ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
+            fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
 
             clear()
             video_batch(urls, fmt_key, folder_name, download_dir)

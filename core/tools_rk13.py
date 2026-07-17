@@ -15,7 +15,7 @@ from rich import box
 from rich.progress import (
     Progress, TextColumn, BarColumn, SpinnerColumn, TimeElapsedColumn,
 )
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm
 
 from core.cover import _search_itunes, _download_cover
 from core.metadata_fixer import (
@@ -23,7 +23,7 @@ from core.metadata_fixer import (
     scan_for_browser, AUDIO_EXTENSIONS, detect_storage_roots,
     _pick_storage_root,
 )
-from ui.interface import show_section_header
+from ui.interface import show_section_header, prompt_ask
 
 console = Console()
 
@@ -63,7 +63,7 @@ def _browse_folder(title, default_path):
         show_section_header(title)
         console.print(f"  Ruta: [cyan]{start}[/cyan]")
         console.print(f"  [0] Usar esta   [1-{len(roots)}] Elegir otra raíz\n")
-        choice = Prompt.ask("  [bright_red]>[/bright_red]", default="0")
+        choice = prompt_ask("  [bright_red]>[/bright_red]", default="0")
         try:
             n = int(choice)
             if 1 <= n <= len(roots):
@@ -100,7 +100,7 @@ def _browse_folder(title, default_path):
         console.print("  \\[q] Cancelar")
         console.print()
 
-        act = Prompt.ask("  [bright_red]>[/bright_red]").strip().lower()
+        act = prompt_ask("  [bright_red]>[/bright_red]").strip().lower()
 
         if act == "s":
             return current
@@ -161,7 +161,7 @@ def tools_rk13_menu(download_dir):
         console.print(tbl)
         console.print()
 
-        choice = Prompt.ask("  [bright_red]>[/bright_red]", default="4").strip()
+        choice = prompt_ask("  [bright_red]>[/bright_red]", default="4").strip()
 
         if choice == "1":
             from core.metadata_fixer import interactive_browser
@@ -206,7 +206,7 @@ def _resolve_dest_folder(source, ext_key):
     console.print("  [1] Sobrescribir (vaciar carpeta)")
     console.print("  [2] Crear con sufijo numérico")
     console.print("  [3] Cancelar")
-    act = Prompt.ask("  [bright_red]>[/bright_red]", default="3")
+    act = prompt_ask("  [bright_red]>[/bright_red]", default="3")
     if act == "1":
         shutil.rmtree(base)
         base.mkdir(parents=True)
@@ -272,7 +272,7 @@ def _converter_menu(download_dir):
     console.print(fmt_tbl)
     console.print()
 
-    c = Prompt.ask("  [bright_red]Formato destino[/bright_red]", default="2")
+    c = prompt_ask("  [bright_red]Formato destino[/bright_red]", default="2")
     try:
         target = keys[int(c) - 1]
     except (ValueError, IndexError):
@@ -303,7 +303,7 @@ def _converter_menu(download_dir):
             qt.add_row(f"[{i}]", k, f"{info['bitrates'][k]}{m}")
         console.print(qt)
         console.print()
-        qc = Prompt.ask("  [bright_red]Calidad[/bright_red]",
+        qc = prompt_ask("  [bright_red]Calidad[/bright_red]",
                         default=str(qkeys.index(info["default"]) + 1))
         try:
             bitrate = info["bitrates"][qkeys[int(qc) - 1]]
@@ -536,7 +536,7 @@ def _deduplicator_menu(download_dir):
     console.print(mt)
     console.print()
 
-    m = Prompt.ask("  [bright_red]Método[/bright_red]", default="2")
+    m = prompt_ask("  [bright_red]Método[/bright_red]", default="2")
     method_map = {"1": "name", "2": "metadata", "3": "hash"}
     method = method_map.get(m, "metadata")
 
@@ -564,7 +564,7 @@ def _deduplicator_menu(download_dir):
     console.print("  [x] Salir sin cambios")
     console.print()
 
-    act = Prompt.ask("  [bright_red]>[/bright_red]", default="x").strip().lower()
+    act = prompt_ask("  [bright_red]>[/bright_red]", default="x").strip().lower()
     if act == "x":
         return
 
@@ -589,7 +589,7 @@ def _deduplicator_menu(download_dir):
                     removed += 1
 
     elif act == "c":
-        fmt = Prompt.ask("  Conservar formato", default="m4a").strip().lower()
+        fmt = prompt_ask("  Conservar formato", default="m4a").strip().lower()
         ext = f".{fmt}" if not fmt.startswith(".") else fmt
         for g in groups:
             match = [f for f in g if f.suffix.lower() == ext]
@@ -605,7 +605,7 @@ def _deduplicator_menu(download_dir):
 
     elif act == "d":
         for g in groups:
-            idx = Prompt.ask(f"  Conservar # (1-{len(g)})", default="1")
+            idx = prompt_ask(f"  Conservar # (1-{len(g)})", default="1")
             try:
                 keep = g[int(idx) - 1]
                 kept += 1
