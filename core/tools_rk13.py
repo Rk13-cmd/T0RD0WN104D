@@ -17,7 +17,7 @@ from rich.progress import (
 )
 from rich.prompt import Confirm
 
-from core.cover import _search_itunes, _download_cover
+from core.cover import _resolve_cover_url, _download_cover
 from core.metadata_fixer import (
     _read_tags, _write_tags, _guess_artist_title, check_file_status,
     scan_for_browser, AUDIO_EXTENSIONS, detect_storage_roots,
@@ -366,10 +366,10 @@ def _converter_menu(download_dir):
                 progress.advance(task)
                 continue
 
-            meta = _search_itunes(artist, title)
+            meta = _resolve_cover_url(artist, title)
             if not meta:
                 skipped += 1
-                console.print(f"  [dim]~ {dst.name}: convertido, sin match iTunes[/dim]")
+                console.print(f"  [dim]~ {dst.name}: convertido, sin carátula[/dim]")
                 progress.advance(task)
                 continue
 
