@@ -151,6 +151,20 @@ def _search_deezer(artist, title):
     return None
 
 
+def get_clean_metadata(info):
+    """Return (title, artist, album, cover_path|None) from iTunes multi-stage → Deezer."""
+    artist = info.get("uploader", "")
+    title = _clean_title(info.get("title", ""), artist)
+    result = _resolve_cover_url(artist, title)
+    if result:
+        cover_path = None
+        if result.get("art_url"):
+            cache_key = urllib.parse.quote(f"{result['artist']}_{result['track']}")
+            cover_path = _download_cover(result["art_url"], cache_key)
+        return (result["track"], result["artist"], result["album"], cover_path)
+    return (title, artist, info.get("playlist_title", "YouTube Audio"), None)
+
+
 def _resolve_cover_url(artist, title):
     """iTunes multi-stage → Deezer.  Always returns a square cover or None."""
     result = _search_itunes_multistage(artist, title)
@@ -160,6 +174,7 @@ def _resolve_cover_url(artist, title):
     if result and result.get("art_url"):
         return result
     return None
+
 
 def _download_cover(art_url, cache_key):
     ext = ".jpg"
