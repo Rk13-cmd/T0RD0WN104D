@@ -11,7 +11,7 @@ from rich.progress import Progress, BarColumn, TextColumn, DownloadColumn, Trans
 
 from core.utils import get_ytdlp_path, FORMATS, extract_info, extract_playlist_info
 from core.cover import get_clean_metadata
-from ui.interface import show_info_panel
+from ui.interface import show_info_panel, confirm_ask
 from data import history
 
 console = Console()
@@ -257,8 +257,7 @@ def playlist(url, fmt_key, limit=None, output_dir=None):
 
     show_playlist_table(playlist_title or "Playlist", entries)
 
-    from rich.prompt import Confirm
-    if not Confirm.ask(f"\n  Descargar [cyan]{len(entries)}[/cyan] canciones?"):
+    if not confirm_ask(f"\n  Descargar [cyan]{len(entries)}[/cyan] canciones?"):
         console.print("[yellow]Cancelado[/yellow]")
         return
 
@@ -337,8 +336,7 @@ def batch(urls, fmt_key, folder_name, output_dir=None, titles=None):
 
     show_urls_table(folder_name, urls)
 
-    from rich.prompt import Confirm
-    if not Confirm.ask(f"\n  Descargar [cyan]{len(urls)}[/cyan] canciones en '[bold]{folder_name}[/bold]'?"):
+    if not confirm_ask(f"\n  Descargar [cyan]{len(urls)}[/cyan] canciones en '[bold]{folder_name}[/bold]'?"):
         console.print("[yellow]Cancelado[/yellow]")
         return
 

@@ -9,10 +9,8 @@ from rich.panel import Panel
 from rich.align import Align
 from rich import box
 from rich.progress import Progress, TextColumn, BarColumn
-from rich.prompt import Prompt, Confirm
-
 from core.cover import _resolve_cover_url, _download_cover, CACHE_DIR
-from ui.interface import show_section_header
+from ui.interface import show_section_header, press_enter, prompt_ask, confirm_ask
 
 console = Console()
 
@@ -103,7 +101,7 @@ def _pick_storage_root(roots):
         tbl.add_row(f"[{i}]", f"{label}  [dim]{path}[/dim]")
     console.print(tbl)
 
-    choice = Prompt.ask("\n  [bright_red]>[/bright_red]", default="1")
+    choice = prompt_ask("\n  [bright_red]>[/bright_red]", default="1")
     try:
         idx = int(choice) - 1
         if 0 <= idx < len(roots):
@@ -380,21 +378,21 @@ def _show_file_menu(filepath):
         console.print("  [2] 🖼  Re-descargar solo portada")
         console.print("  [3] 🔙 Volver")
         console.print()
-        act = Prompt.ask("  [bright_red]>[/bright_red]", default="3")
+        act = prompt_ask("  [bright_red]>[/bright_red]", default="3")
         if act == "1":
             ok, msg = _fix_single_file(filepath)
             if ok:
                 console.print(f"  [green]✓ {msg}[/green]")
             else:
                 console.print(f"  [red]✗ {msg}[/red]")
-            console.input("\n[dim]Presiona Enter...[/dim]")
+            press_enter()
         elif act == "2":
             ok, msg = _recover_single(filepath)
             if ok:
                 console.print(f"  [green]✓ {msg}[/green]")
             else:
                 console.print(f"  [red]✗ {msg}[/red]")
-            console.input("\n[dim]Presiona Enter...[/dim]")
+            press_enter()
         elif act == "3":
             break
 
@@ -411,7 +409,7 @@ def interactive_browser(start_path):
             start = _pick_storage_root(roots)
         else:
             console.print(f"[red]Ruta invalida: {start_path}[/red]")
-            console.input("\n[dim]Presiona Enter...[/dim]")
+            press_enter()
             return
 
     if len(roots) > 1:
@@ -419,7 +417,7 @@ def interactive_browser(start_path):
         show_section_header("📁 CORREGIR METADATOS")
         console.print(f"  Ruta: [cyan]{start}[/cyan]")
         console.print(f"  [0] Usar esta   [1-{len(roots)}] Elegir otra raíz\n")
-        choice = Prompt.ask("  [bright_red]>[/bright_red]", default="0")
+        choice = prompt_ask("  [bright_red]>[/bright_red]", default="0")
         try:
             n = int(choice)
             if 1 <= n <= len(roots):
@@ -489,7 +487,7 @@ def interactive_browser(start_path):
         console.print("  \\[b] Atrás                  \\[q] Salir")
         console.print()
 
-        act = Prompt.ask("  [bright_red]>[/bright_red]").strip().lower()
+        act = prompt_ask("  [bright_red]>[/bright_red]").strip().lower()
 
         if act == "q":
             break
@@ -499,19 +497,19 @@ def interactive_browser(start_path):
         elif act == "f":
             clear()
             fix_folder(current)
-            console.input("\n[dim]Presiona Enter para continuar...[/dim]")
+            press_enter()
         elif act == "i":
-            idx_str = Prompt.ask("  Número del archivo")
+            idx_str = prompt_ask("  Número del archivo")
             try:
                 idx = int(idx_str) - file_start
                 if 0 <= idx < len(files):
                     _show_file_menu(files[idx]["filepath"])
                 else:
                     console.print("[red]Número fuera de rango[/red]")
-                    console.input("\n[dim]Presiona Enter...[/dim]")
+                    press_enter()
             except ValueError:
                 console.print("[red]Número inválido[/red]")
-                console.input("\n[dim]Presiona Enter...[/dim]")
+                press_enter()
         elif act.isdigit():
             n = int(act)
             if n == nav_start:
@@ -593,7 +591,7 @@ def fix_folder(folder_path, recursive=False):
 
             progress.advance(task)
 
-    progress.update(task, visible=False)
+    progress.remove_task(task)
     console.print()
     summary = []
     if fixed:

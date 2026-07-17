@@ -15,16 +15,14 @@ from rich import box
 from rich.progress import (
     Progress, TextColumn, BarColumn, SpinnerColumn, TimeElapsedColumn,
 )
-from rich.prompt import Confirm
-
 from core.cover import _resolve_cover_url, _download_cover
+
 from core.metadata_fixer import (
     _read_tags, _write_tags, _guess_artist_title, check_file_status,
     scan_for_browser, AUDIO_EXTENSIONS, detect_storage_roots,
     _pick_storage_root,
 )
-from ui.interface import show_section_header, prompt_ask
-
+from ui.interface import show_section_header, prompt_ask, press_enter, confirm_ask
 console = Console()
 
 FORMATS = {
@@ -226,7 +224,7 @@ def _converter_menu(download_dir):
             "  Instalalo con: [bold]pkg install ffmpeg[/bold]\n"
             "  o: [bold]apt install ffmpeg[/bold]"
         )
-        console.input("\n[dim]Presiona Enter...[/dim]")
+        press_enter()
         return
 
     source = _browse_folder("🔧 CONVERTIR FORMATO", download_dir)
@@ -239,7 +237,7 @@ def _converter_menu(download_dir):
 
     if not all_files:
         console.print("[red]No se encontraron archivos de audio[/red]")
-        console.input("\n[dim]Presiona Enter...[/dim]")
+        press_enter()
         return
 
     # Summary
@@ -283,7 +281,7 @@ def _converter_menu(download_dir):
     to_convert = [f for f in all_files if f.suffix.lower() != target_ext]
     if not to_convert:
         console.print("[yellow]Todos los archivos ya están en el formato destino[/yellow]")
-        console.input("\n[dim]Presiona Enter...[/dim]")
+        press_enter()
         return
 
     # Quality
@@ -331,7 +329,7 @@ def _converter_menu(download_dir):
     console.print(Panel(ct, title="Resumen", border_style="bright_red"))
     console.print()
 
-    if not Confirm.ask("  ¿Iniciar conversión?", default=True):
+    if not confirm_ask("  ¿Iniciar conversión?", default=True):
         return
 
     dest.mkdir(parents=True, exist_ok=True)
@@ -390,7 +388,7 @@ def _converter_menu(download_dir):
 
             progress.advance(task)
 
-    progress.update(task, visible=False)
+    progress.remove_task(task)
 
     # Results
     _clear()
@@ -406,14 +404,14 @@ def _converter_menu(download_dir):
     console.print(Panel(rt, title="Resultado", border_style="bright_red"))
     console.print()
 
-    if converted and Confirm.ask("  ¿Eliminar carpeta original?", default=False):
+    if converted and confirm_ask("  ¿Eliminar carpeta original?", default=False):
         try:
             shutil.rmtree(source)
             console.print(f"[green]✓ Original eliminado: {source}[/green]")
         except Exception as e:
             console.print(f"[red]✗ {e}[/red]")
 
-    console.input("\n[dim]Presiona Enter para continuar...[/dim]")
+    press_enter()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -520,7 +518,7 @@ def _deduplicator_menu(download_dir):
 
     if not files:
         console.print("[yellow]No hay archivos de audio[/yellow]")
-        console.input("\n[dim]Presiona Enter...[/dim]")
+        press_enter()
         return
 
     _clear()
@@ -547,7 +545,7 @@ def _deduplicator_menu(download_dir):
 
     if not groups:
         console.print("[green]✓ No se encontraron duplicados[/green]")
-        console.input("\n[dim]Presiona Enter...[/dim]")
+        press_enter()
         return
 
     _clear()
@@ -620,4 +618,4 @@ def _deduplicator_menu(download_dir):
 
     console.print()
     console.print(f"[green]✓ {kept} conservado(s), {removed} eliminado(s)[/green]")
-    console.input("\n[dim]Presiona Enter para continuar...[/dim]")
+    press_enter()

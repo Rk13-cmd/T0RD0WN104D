@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich import box
 
 from core.utils import get_ytdlp_path, VIDEO_FORMATS, extract_info, extract_playlist_info
-from ui.interface import show_info_panel
+from ui.interface import show_info_panel, confirm_ask
 from data import history
 from core.downloader import _run_ytdlp, _attempt_download
 
@@ -98,7 +98,6 @@ def _download_track(url, fmt, out_dir, index, total):
 
 
 def playlist(url, fmt_key, limit=None, output_dir=None):
-    from rich.prompt import Confirm
     from ui.interface import show_playlist_table
 
     fmt = VIDEO_FORMATS.get(fmt_key)
@@ -121,7 +120,7 @@ def playlist(url, fmt_key, limit=None, output_dir=None):
 
     show_playlist_table(playlist_title or "Lista de Videos", entries)
 
-    if not Confirm.ask(f"\n  Descargar [cyan]{len(entries)}[/cyan] videos?"):
+    if not confirm_ask(f"\n  Descargar [cyan]{len(entries)}[/cyan] videos?"):
         console.print("[yellow]Cancelado[/yellow]")
         return
 
@@ -174,7 +173,6 @@ def playlist(url, fmt_key, limit=None, output_dir=None):
 
 
 def batch(urls, fmt_key, folder_name, output_dir=None, titles=None):
-    from rich.prompt import Confirm
     from ui.interface import show_urls_table
 
     fmt = VIDEO_FORMATS.get(fmt_key)
@@ -189,7 +187,7 @@ def batch(urls, fmt_key, folder_name, output_dir=None, titles=None):
 
     show_urls_table(folder_name, urls)
 
-    if not Confirm.ask(f"\n  Descargar [cyan]{len(urls)}[/cyan] videos en '[bold]{folder_name}[/bold]'?"):
+    if not confirm_ask(f"\n  Descargar [cyan]{len(urls)}[/cyan] videos en '[bold]{folder_name}[/bold]'?"):
         console.print("[yellow]Cancelado[/yellow]")
         return
 

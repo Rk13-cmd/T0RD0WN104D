@@ -3,9 +3,8 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
-from rich.prompt import Confirm
 
-from ui.interface import show_banner, show_menu, show_section_header, show_formats_table, show_video_formats_table, show_urls_table, show_search_results, config_menu, clear, prompt_ask
+from ui.interface import show_banner, show_menu, show_section_header, show_formats_table, show_video_formats_table, show_urls_table, show_search_results, config_menu, clear, prompt_ask, press_enter, confirm_ask
 from core.downloader import single as download_single, playlist as download_playlist, batch as download_batch
 from core.video_downloader import single as video_single, playlist as video_playlist, batch as video_batch
 from core.spotify import import_from_spotify
@@ -41,7 +40,7 @@ def handle_menu():
         if choice == "9":
             clear()
             history.show()
-            console.input("\n[dim]Presiona Enter para continuar...[/dim]")
+            press_enter()
             continue
 
         # --- T00L5RK13 ---
@@ -53,7 +52,7 @@ def handle_menu():
         if choice == "11":
             clear()
             download_dir = config_menu(download_dir)
-            console.input("\n[dim]Presiona Enter para continuar...[/dim]")
+            press_enter()
             continue
 
         # ===== OPTION 1: SPOTIFY =====
@@ -84,7 +83,7 @@ def handle_menu():
             show_section_header(f"RESULTADO: {label[:50]}")
             show_urls_table(label, only_urls)
 
-            if not Confirm.ask(f"\n  Descargar [cyan]{len(results)}[/cyan] {'cancion' if len(results) == 1 else 'canciones'}?"):
+            if not confirm_ask(f"\n  Descargar [cyan]{len(results)}[/cyan] {'cancion' if len(results) == 1 else 'canciones'}?"):
                 console.print("[yellow]Cancelado[/yellow]")
                 continue
 
@@ -97,7 +96,7 @@ def handle_menu():
             clear()
             download_batch(only_urls, fmt_key, label, download_dir, titles=only_titles)
 
-            if not Confirm.ask("\n  Importar otra playlist?"):
+            if not confirm_ask("\n  Importar otra playlist?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
             continue
@@ -156,7 +155,7 @@ def handle_menu():
                 show_section_header("INFORMACION")
                 url = selected[0]["url"]
                 success = download_single(url, "3", None)
-                if not success and Confirm.ask("  Reintentar con otro formato?"):
+                if not success and confirm_ask("  Reintentar con otro formato?"):
                     show_formats_table()
                     fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
                     download_single(url, fmt_key, None)
@@ -169,7 +168,7 @@ def handle_menu():
                 clear()
                 download_batch(only_urls, fmt_key, "Busqueda YouTube", download_dir, titles=only_titles)
 
-            if not Confirm.ask("\n  Buscar otra cosa?"):
+            if not confirm_ask("\n  Buscar otra cosa?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
             continue
@@ -196,12 +195,12 @@ def handle_menu():
             clear()
             show_section_header("INFORMACION DE LA CANCION")
             success = download_single(url, fmt_key, out_dir)
-            if not success and Confirm.ask("  Reintentar con otro formato?"):
+            if not success and confirm_ask("  Reintentar con otro formato?"):
                 show_formats_table()
                 fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
                 download_single(url, fmt_key, out_dir)
 
-            if not Confirm.ask("\n  Descargar otro?"):
+            if not confirm_ask("\n  Descargar otro?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
 
@@ -231,7 +230,7 @@ def handle_menu():
             show_section_header("DESCARGANDO LISTA")
             download_playlist(url, fmt_key, limit, out_dir)
 
-            if not Confirm.ask("\n  Descargar otro?"):
+            if not confirm_ask("\n  Descargar otro?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
 
@@ -264,7 +263,7 @@ def handle_menu():
             clear()
             download_batch(urls, fmt_key, folder_name, download_dir)
 
-            if not Confirm.ask("\n  Descargar otro lote?"):
+            if not confirm_ask("\n  Descargar otro lote?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
             continue
@@ -291,12 +290,12 @@ def handle_menu():
             clear()
             show_section_header("INFORMACION DEL VIDEO")
             success = video_single(url, fmt_key, out_dir)
-            if not success and Confirm.ask("  Reintentar con otra calidad?"):
+            if not success and confirm_ask("  Reintentar con otra calidad?"):
                 show_video_formats_table()
                 fmt_key = prompt_ask("  [bright_red]3L3G1R 0PC10N[/bright_red] [bright_red]\u28ff[/bright_red]", default="1")
                 video_single(url, fmt_key, out_dir)
 
-            if not Confirm.ask("\n  Descargar otro?"):
+            if not confirm_ask("\n  Descargar otro?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
 
@@ -326,7 +325,7 @@ def handle_menu():
             show_section_header("DESCARGANDO LISTA")
             video_playlist(url, fmt_key, limit, out_dir)
 
-            if not Confirm.ask("\n  Descargar otro?"):
+            if not confirm_ask("\n  Descargar otro?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
 
@@ -359,7 +358,7 @@ def handle_menu():
             clear()
             video_batch(urls, fmt_key, folder_name, download_dir)
 
-            if not Confirm.ask("\n  Descargar otro lote?"):
+            if not confirm_ask("\n  Descargar otro lote?"):
                 console.print("[yellow]Hasta luego![/yellow]")
                 break
             continue

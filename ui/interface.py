@@ -22,6 +22,25 @@ def prompt_ask(prompt_text, default=""):
         return str(default)
     return val if val else default
 
+
+def press_enter():
+    """Wait for Enter key press, avoiding Rich input issues."""
+    console.print("\n[dim]Presiona Enter para continuar...[/dim]", end="")
+    input()
+
+
+def confirm_ask(prompt_text, default=True):
+    """Yes/No confirmation avoiding Rich input issues."""
+    suffix = " [Y/n]" if default else " [y/N]"
+    console.print(f"{prompt_text}{suffix}", end=" ")
+    try:
+        val = input().strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return default
+    if not val:
+        return default
+    return val in ("y", "yes", "s", "si")
+
 def clear():
     os.system('clear')
     print('\033[3J', end='')
@@ -223,19 +242,18 @@ def show_urls_table(folder_name, urls):
 
 
 def config_menu(download_dir):
-    from rich.prompt import Prompt
     from core.metadata_fixer import show_storage_bar
     console.print(Panel(
         "[bold white]Configuraci\u00f3n[/bold white]",
         border_style="bright_red",
         box=box.ROUNDED,
     ))
-    current = str(download_dir.resolve())
-
+    console.print(f"[yellow]Directorio actual:[/yellow] [cyan]{download_dir}[/cyan]")
+    current = str(download_dir)
     console.print("[bold yellow]Almacenamiento disponible:[/bold yellow]")
     show_storage_bar()
 
-    new_dir = Prompt.ask("Directorio de descargas", default=current)
+    new_dir = prompt_ask("Directorio de descargas", default=current)
     if new_dir != current:
         path = Path(new_dir) if 'Path' in dir() else __import__('pathlib').Path(new_dir)
         console.print(f"[green]Directorio cambiado a: {path}[/green]")
