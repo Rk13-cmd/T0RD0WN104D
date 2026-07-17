@@ -1,6 +1,5 @@
 import re
 import json
-import subprocess
 import urllib.request
 import urllib.parse
 from pathlib import Path
@@ -8,96 +7,129 @@ from pathlib import Path
 CACHE_DIR = Path(__file__).parent.parent / ".cover_cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
-def _clean_title(title, artist=None):
-    # Remove common patterns like "(Official Video)", "[4K]", etc.
-    title = re.sub(r'\([^)]*(?:video|music|lyric|official|audio|4K|HD|1080p|60fps)[^)]*\)', '', title, flags=re.I)
-    title = re.sub(r'\[[^\]]*(?:video|music|lyric|official|audio|4K|HD|1080p|60fps)[^\]]*\]', '', title, flags=re.I)
-    # Remove "(Letra)", "(Lyrics)", "(Audio)", etc.
-    title = re.sub(r'[\[\(][^\]\)]*(?:letra|lyric|lyrics|audio|video|oficial|official)[^\]\)]*[\]\)]', '', title, flags=re.I)
-    # Clean separators: ｜ ; | - etc
-    title = re.sub(r'\s*[｜|;]\s*.*$', '', title)
-    # Remove "feat.", "ft.", "ft" parts
-    title = re.sub(r'\s+[fF]eat\.?\s+.*$', '', title)
-    title = re.sub(r'\s+[fF]t\.?\s+.*$', '', title)
-    title = re.sub(r'\s+[xX×]\s+.*$', '', title)
-    # Strip trailing/leading garbage
-    title = title.strip().rstrip('-–. ').strip()
-    title = re.sub(r'\s{2,}', ' ', title)
+_STOPWORDS = frozenset({
+    "el", "la", "los", "las", "lo", "de", "del", "en", "un", "una", "unos",
+    "unas", "y", "e", "o", "a", "con", "por", "para", "que", "es", "no",
+    "se", "su", "le", "me", "te", "nos", "os", "al", "este", "esta", "estos",
+    "estas", "como", "más", "muy", "sin", "entre", "desde", "hasta", "pero",
+    "si", "tu", "mi", "ya", "solo", "cuando", "donde", "quien", "todo",
+    "the", "a", "an", "and", "of", "to", "in", "it", "is", "on", "at",
+    "for", "with", "feat", "ft",
+})
 
-    # Strip "Artist - " prefix if it matches the uploader
+
+def _clean_title(title, artist=None):
+    remove = re.compile(
+        r'[\[\(][^\]\)]*(?:video|music|lyric|lyrics|official|oficial|'
+        r'audio|4K|HD|1080p|60fps|letra|letras|sub[ -]?espa[ñn]ol|'
+        r'video[ -]?oficial|official[ -]?video|lyric[ -]?video|'
+        r'audio[ -]?oficial|cover|remix|live|en[ -]?vivo|'
+        r'versión|version|acústica|acoustic|instrumental|'
+        r'prod[ -]?by|visualizer|visualizador)[^\]\)]*[\]\)]',
+        re.I,
+    )
+    title = remove.sub('', title)
+    title = re.sub(r'\s*[｜|;]\s*.*$', '', title)
+    title = re.sub(r'\s+[fF]eat\.?\s+.*$', ' ft', title)
+    title = re.sub(r'\s+[fF]t\.?\s+.*$', ' ft', title)
+    title = re.sub(r'\s+[xX×]\s+.*$', '', title)
+    title = title.strip().rstrip('-–.:; ').strip()
+    title = re.sub(r'\s{2,}', ' ', title)
     if artist:
         prefix = re.escape(artist.strip()) + r'\s*[-–:]\s*'
         title = re.sub(prefix, '', title, flags=re.I)
-
     return title.strip()
 
 
-def get_clean_metadata(info):
-    """Return (title, artist, album, cover_path|None) from iTunes → Deezer → YouTube."""
-    artist = info.get("uploader", "")
-    title = _clean_title(info.get("title", ""), artist)
+def _extract_keywords(text, max_words=3):
+    """Keep significant words (≥3 chars, no stopwords)."""
+    words = re.findall(r"[A-Za-zÁáÉéÍíÓóÚúÜüÑñ]+", text)
+    significant = [w for w in words if w.lower() not in _STOPWORDS and len(w) >= 3]
+    return significant[:max_words]
 
-    result = _resolve_cover_url(artist, title)
-    if result:
-        cover_path = None
-        if result.get("art_url"):
-            cache_key = urllib.parse.quote(f"{result['artist']}_{result['track']}")
-            cover_path = _download_cover(result["art_url"], cache_key)
-        return (result["track"], result["artist"], result["album"], cover_path)
 
-    # Fallback: use cleaned YouTube data
-    return (title, artist, info.get("playlist_title", "YouTube Audio"), None)
-
-def _search_itunes(artist, title):
-    query = f"{artist} {title}"
-    url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&limit=5&media=music&entity=song"
-
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+def _search_itunes_raw(term):
+    """Low-level iTunes lookup. Returns list of results or None."""
+    url = f"https://itunes.apple.com/search?term={urllib.parse.quote(term)}&limit=5&media=music&entity=song"
     try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=15) as r:
             data = json.loads(r.read())
+        return data.get("results")
     except Exception:
-        return _search_itunes_no_artist(title)
-
-    if not data.get("results"):
-        return _search_itunes_no_artist(title)
-
-    result = data["results"][0]
-    art_url = result.get("artworkUrl100", "")
-    if art_url:
-        art_url = art_url.replace("100x100", "600x600")
-
-    return {
-        "artist": result.get("artistName", artist),
-        "track": result.get("trackName", title),
-        "album": result.get("collectionName", ""),
-        "art_url": art_url,
-    }
+        return None
 
 
-def _search_itunes_no_artist(title):
-    url = f"https://itunes.apple.com/search?term={urllib.parse.quote(title)}&limit=5&media=music&entity=song"
-    try:
-        with urllib.request.urlopen(url, timeout=15) as r:
-            data = json.loads(r.read())
-        if data.get("results"):
-            result = data["results"][0]
-            art_url = result.get("artworkUrl100", "")
-            if art_url:
-                art_url = art_url.replace("100x100", "600x600")
+def _pick_match(results, artist, title):
+    """From a list of iTunes results, pick the best match based on artist
+    proximity, or the first one that has artwork."""
+    if not results:
+        return None
+    best = None
+    best_score = -1
+    a_lower = artist.strip().lower() if artist else ""
+    t_lower = title.strip().lower() if title else ""
+    for res in results:
+        art_url = (res.get("artworkUrl100") or "").replace("100x100", "600x600")
+        if not art_url:
+            continue
+        r_artist = (res.get("artistName") or "").lower()
+        r_track = (res.get("trackName") or "").lower()
+        score = 0
+        if a_lower and a_lower in r_artist:
+            score += 10
+            if r_artist == a_lower:
+                score += 5
+        if t_lower and (t_lower in r_track or r_track.startswith(t_lower)):
+            score += 3
+            if r_track == t_lower:
+                score += 3
+        if score > best_score:
+            best_score = score
+            best = res
+    if not best and results:
+        best = results[0]
+    return best
+
+
+def _search_itunes_multistage(artist, title):
+    """Multi-stage iTunes search — prioritises same-artist matches.
+    Order: exact → artist-only → title → keywords.
+    Always returns a square iTunes cover or None."""
+    stages = []
+    stages.append(f"{artist} {title}")
+    if artist:
+        stages.append(artist)
+    if artist:
+        stages.append(title)
+    keywords = _extract_keywords(title, 3)
+    if keywords:
+        stages.append(" ".join(keywords))
+    if keywords and artist:
+        stages.append(f"{artist} {' '.join(keywords[:2])}")
+
+    seen_art = set()
+    for q in stages:
+        results = _search_itunes_raw(q)
+        if not results:
+            continue
+        match = _pick_match(results, artist, title)
+        if not match:
+            continue
+        art_url = (match.get("artworkUrl100") or "").replace("100x100", "600x600")
+        if art_url and art_url not in seen_art:
+            seen_art.add(art_url)
             return {
-                "artist": result.get("artistName", ""),
-                "track": result.get("trackName", title),
-                "album": result.get("collectionName", ""),
+                "artist": match.get("artistName", artist),
+                "track": match.get("trackName", title),
+                "album": match.get("collectionName", ""),
                 "art_url": art_url,
             }
-    except Exception:
-        pass
     return None
 
 
 def _search_deezer(artist, title):
-    """Fallback: Deezer API (no key needed).  Returns square 1000x1000 cover."""
+    """Deezer API (no key).  Returns square 1000×1000 cover."""
     query = urllib.parse.quote(f"{artist} {title}")
     url = f"https://api.deezer.com/search?q={query}&limit=3&output=json"
     try:
@@ -119,57 +151,12 @@ def _search_deezer(artist, title):
     return None
 
 
-def _search_youtube_thumbnail(artist, title):
-    """Last resort: grab maxresdefault thumbnail from YouTube search."""
-    query = urllib.parse.quote(f"{artist} {title}")
-    try:
-        result = subprocess.run(
-            ["yt-dlp", "--no-warnings", "--dump-json", "--no-download",
-             "--playlist-items", "1", f"ytsearch:{artist} {title}"],
-            capture_output=True, text=True, timeout=20,
-        )
-        out = result.stdout.strip()
-        if out:
-            data = json.loads(out.splitlines()[0])
-            vid = data.get("id")
-            if vid:
-                art_url = f"https://img.youtube.com/vi/{vid}/maxresdefault.jpg"
-                # check it exists
-                req = urllib.request.Request(art_url, method="HEAD")
-                try:
-                    with urllib.request.urlopen(req, timeout=10) as r:
-                        if r.status == 200:
-                            return {
-                                "artist": data.get("uploader", artist),
-                                "track": data.get("title", title),
-                                "album": data.get("playlist_title", "YouTube Audio"),
-                                "art_url": art_url,
-                            }
-                except Exception:
-                    art_url = f"https://img.youtube.com/vi/{vid}/hqdefault.jpg"
-                    return {
-                        "artist": data.get("uploader", artist),
-                        "track": data.get("title", title),
-                        "album": data.get("playlist_title", "YouTube Audio"),
-                        "art_url": art_url,
-                    }
-    except Exception:
-        pass
-    return None
-
-
 def _resolve_cover_url(artist, title):
-    """Try iTunes → Deezer → YouTube thumbnail, return first hit or None."""
-    # 1) iTunes
-    result = _search_itunes(artist, title)
+    """iTunes multi-stage → Deezer.  Always returns a square cover or None."""
+    result = _search_itunes_multistage(artist, title)
     if result and result.get("art_url"):
         return result
-    # 2) Deezer (square, high-res, no key)
     result = _search_deezer(artist, title)
-    if result and result.get("art_url"):
-        return result
-    # 3) YouTube thumbnail
-    result = _search_youtube_thumbnail(artist, title)
     if result and result.get("art_url"):
         return result
     return None
