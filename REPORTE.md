@@ -1,17 +1,17 @@
-# T0RD0WNL04D — Reporte Técnico Completo
+# T0RD0WNL04D — Reporte Técnico Completo (V.RK13.1.1)
 
 ---
 
 ## 1. Descripción General
 
-Aplicación CLI (interfaz de línea de comandos) para descargar audio/video desde YouTube y Spotify. Escrita en **Python 3.14**, diseñada para entornos **Termux (Android)**.
+Aplicación CLI (interfaz de línea de comandos) para descargar audio/video desde YouTube y Spotify, con suite de herramientas profesionales de audio (T00L5RK13). Escrita en **Python 3.14**, diseñada para entornos **Termux (Android)**.
 
 | Atributo | Valor |
 |----------|-------|
 | **Lenguaje** | Python 3.14 |
-| **Paradigma** | Programación estructurada / imperativa (sin clases ni OOP, excepto uso de librerías externas) |
-| **Entry point** | `t0rd0wnl04d.py` (369 líneas) |
-| **Total código** | ~1,400 líneas distribuidas en 10 módulos |
+| **Paradigma** | Programación estructurada / imperativa |
+| **Entry point** | `t0rd0wnl04d.py` (~410 líneas) |
+| **Total código** | ~2,500 líneas distribuidas en 13 módulos |
 | **Licencia** | No especificada |
 
 ---
@@ -21,24 +21,27 @@ Aplicación CLI (interfaz de línea de comandos) para descargar audio/video desd
 ```
 descargar-musica/
 ├── t0rd0wnl04d.py          ← Entry point / menú principal
-├── requirements.txt         ← Dependencias
+├── requirements.txt         ← Dependencias PyPI
 ├── config.json              ← Config persistente
 ├── .history.json            ← Historial de descargas
-├── .cover_cache/            ← Caché de carátulas (iTunes)
-├── downloads/               ← Descargas por defecto
-├── core/                    ← Módulos de lógica de negocio
+├── .cover_cache/            ← Caché de carátulas
+├── .gitignore
+├── REPORTE.md               ← Este documento
+├── core/                    ← Lógica de negocio
 │   ├── __init__.py
-│   ├── downloader.py        ← Descarga de audio
-│   ├── video_downloader.py  ← Descarga de video
+│   ├── downloader.py        ← Descarga de audio (yt-dlp)
+│   ├── video_downloader.py  ← Descarga de video (yt-dlp)
 │   ├── spotify.py           ← Importación desde Spotify
-│   ├── cover.py             ← Metadatos y carátulas (iTunes)
-│   └── utils.py             ← Utilidades (yt-dlp wrapper, formatos)
-├── ui/                      ← Capa de presentación
+│   ├── cover.py             ← Carátulas multi-fallo (iTunes → Deezer)
+│   ├── metadata_fixer.py    ← Corrector interactivo de metadatos ID3
+│   ├── tools_rk13.py        ← T00L5RK13: conversor + deduplicador
+│   └── utils.py             ← Utilidades, formatos, wrappers yt-dlp
+├── ui/                      ← Capa de presentación (Rich)
 │   ├── __init__.py
-│   └── interface.py         ← Renderizado Rich (banners, tablas, menús)
+│   └── interface.py         ← Banners, tablas, menús, prompts custom
 └── data/
     ├── __init__.py
-    └── history.py           ← Persistencia de historial JSON
+    └── history.py           ← Historial de descargas JSON
 ```
 
 ---
@@ -50,8 +53,8 @@ descargar-musica/
 | **yt-dlp** (CLI) | Motor de descarga real (YouTube, YouTube Music) | Externa (CLI) |
 | **rich ≥ 13.9** | UI en terminal: colores, paneles, tablas, barras de progreso | PyPI |
 | **mutagen ≥ 1.47** | Post-procesado de metadatos ID3 (mp3/m4a) | PyPI |
-| **spotapi ≥ 1.2** | Cliente no-oficial de la API de Spotify (playlists, tracks, álbumes) | PyPI |
-| **ffmpeg** (externo) | Requerido por yt-dlp para conversión de audio/video | Externa (CLI) |
+| **spotapi ≥ 1.2** | Cliente no-oficial de la API de Spotify | PyPI |
+| **ffmpeg** (CLI) | Requerido por yt-dlp + conversor interno T00L5RK13 | Externa (CLI) |
 
 ---
 
@@ -64,10 +67,10 @@ descargar-musica/
 | Función | Descripción |
 |---------|-------------|
 | `get_ytdlp_path()` | Busca yt-dlp primero en `venv/bin/`, fallback al PATH del sistema |
-| `extract_info(url)` | Consulta metadatos de un video vía `yt-dlp --dump-json`. Retorna título, duración, uploader, vistas, etc. Timeout 30s |
-| `extract_playlist_info(url, limit)` | Extrae lista de entradas de una playlist de YouTube. Timeout 60s. Soporta límite opcional |
-| `search_youtube(query, limit=10)` | Busca videos en YouTube via `ytsearch{N}` de yt-dlp. Retorna lista con título, url, duración, canal |
-| `format_duration(seconds)` | Convierte segundos a formato legible `"Xm YYs"` o `"Xh Ym Zs"` |
+| `extract_info(url)` | Consulta metadatos de un video vía `yt-dlp --dump-json`. Timeout 30s |
+| `extract_playlist_info(url, limit)` | Extrae lista de entradas de una playlist de YouTube. Timeout 60s |
+| `search_youtube(query, limit=10)` | Busca videos en YouTube via `ytsearch{N}` de yt-dlp |
+| `format_duration(seconds)` | Convierte segundos a formato legible `"Xm YYs"` |
 
 **Formatos definidos:**
 
@@ -93,104 +96,57 @@ VIDEO_FORMATS = {
 
 ---
 
-### 4.2 `core/downloader.py` (387 líneas)
+### 4.2 `core/downloader.py` (~391 líneas)
 
 **Motor de descarga de AUDIO** — El módulo más grande y complejo del proyecto.
 
 #### `_build_cmd(ytdlp, fmt, template, url)`
 
-Construye el comando `yt-dlp` según el formato destino:
+Construye el comando `yt-dlp`:
 - **MP4 (video):** `-f bestvideo+bestaudio/best` con `--merge-output-format mp4`
-- **Audio:** `-f bestaudio/best` con `--extract-audio`, `--audio-format`, `--audio-quality`, más flags de embedding: `--embed-thumbnail`, `--embed-metadata`, y `--parse-metadata` para mapear uploader→artist, playlist_title→album, upload_date→date
+- **Audio:** `-f bestaudio/best` con `--extract-audio`, `--audio-format`, `--audio-quality`, `--embed-thumbnail`, `--embed-metadata`, `--parse-metadata` (uploader→artist, playlist_title→album, upload_date→date)
 
 #### `_run_ytdlp(cmd, prefix)`
 
-Ejecuta yt-dlp como subproceso con `subprocess.Popen` y pipe de stdout en modo texto línea por línea.
-
-- Renderiza una **barra de progreso interactiva** usando `rich.progress.Progress` con:
-  - `BarColumn` (barra visual)
-  - `DownloadColumn` (tamaño descargado)
-  - `TransferSpeedColumn` (velocidad)
-  - `TimeRemainingColumn` (tiempo restante)
-- **Parseo de líneas de salida:**
-  - `[download] XX.X%` → actualiza porcentaje en la barra
-  - `Destination: ...` → detecta ruta del archivo de salida
-  - `[ExtractAudio]` → cambia descripción a "Extrayendo audio..."
-  - `[Metadata]` / `[EmbedThumbnail]` → cambia a "Imagen y metadata incorporada..."
-  - `[Merger] into "..."` → detecta archivo mergeado
-  - `ERROR` / `WARNING` → acumula mensajes de error
+Ejecuta yt-dlp como subproceso con `subprocess.Popen` y barra de progreso interactiva Rich:
+- `BarColumn`, `DownloadColumn`, `TransferSpeedColumn`, `TimeRemainingColumn`
+- Parsea líneas de salida: `XX%`, `Destination:`, `[ExtractAudio]`, `[Metadata]`, `[Merger]`, `ERROR`, `WARNING`
 
 #### `_attempt_download(cmd, out_dir, ext)`
 
-Wrapper que:
-1. Llama a `_run_ytdlp()`
-2. Si éxito y archivo detectado → retorna `(True, path, errors)`
-3. Fallback 1: busca archivos por extensión en `out_dir`
-4. Fallback 2: cualquier archivo en `out_dir`
-5. Si no encuentra nada → retorna `(False, None, errors)`
+Wrapper con 2 fallbacks de búsqueda de archivo destino.
 
 #### `single(url, fmt_key, output_dir)`
 
-Flujo completo de descarga individual:
-1. Valida formato
-2. Crea directorio
-3. Extrae info del video
-4. Muestra panel de información
-5. Construye y ejecuta comando
-6. **Reintenta automáticamente** si falla (con sleep 1s)
-7. Aplica metadatos vía `_apply_metadata()`
-8. Guarda en historial
+Flujo completo de descarga individual con reintento automático.
 
 #### `playlist(url, fmt_key, limit, output_dir)`
 
-1. Extrae entries de la playlist
-2. Crea subdirectorio con nombre de la playlist
-3. Muestra tabla de canciones con duración total
-4. Pide confirmación al usuario
-5. Itera secuencialmente: descarga cada entry con contador `[i/total]`
-6. Delay de 0.5s entre tracks (anti rate-limit)
-7. Muestra resumen con tabla de completadas/fallidas/ubicación
+Descarga de playlists con tabla de canciones, confirmación, delay 0.5s anti rate-limit.
 
 #### `batch(urls, fmt_key, folder_name, output_dir, titles)`
 
-Similar a playlist pero para URLs arbitrarias (no necesariamente de una playlist). Acepta `titles` opcional para mostrar nombres en lugar de URLs.
+Descarga por lote de URLs arbitrarias.
 
 #### `_apply_metadata(filepath, info, ext)`
 
-Post-procesado de metadatos usando **mutagen**:
-- **m4a (MP4):** Escribe `\xa9nam` (título), `\xa9ART` (artista), `\xa9alb` (álbum), `covr` (carátula JPEG)
-- **mp3 (ID3):** Escribe `TIT2` (título), `TPE1` (artista), `TALB` (álbum), `APIC` (carátula)
-- Los metadatos vienen de `core/cover.py` que consulta iTunes, con fallback a datos limpios de YouTube
+Post-procesado con **mutagen**: escribe título, artista, álbum, carátula en ID3 (mp3) o MP4 tags (m4a). Los metadatos vienen de `core/cover.py`.
 
 ---
 
-### 4.3 `core/video_downloader.py` (240 líneas)
+### 4.3 `core/video_downloader.py` (~241 líneas)
 
 **Motor de descarga de VIDEO** — Estructuralmente idéntico a `downloader.py` pero:
-
-- Usa `_build_video_cmd()` que no aplica `--extract-audio`
-- Usa `VIDEO_FORMATS` en vez de `FORMATS`
-- Reusa `_run_ytdlp()` y `_attempt_download()` del módulo de audio (importados directamente)
-- No aplica metadatos vía mutagen (innecesario para video)
+- Usa `VIDEO_FORMATS` y `_build_video_cmd()` (sin `--extract-audio`)
+- Reusa `_run_ytdlp()` y `_attempt_download()` del módulo de audio
+- No aplica metadatos vía mutagen
 - Mismas 3 operaciones: `single()`, `playlist()`, `batch()`
-- Reintento automático en caso de fallo
 
 ---
 
 ### 4.4 `core/spotify.py` (271 líneas)
 
-**Importación desde Spotify** — El módulo más complejo en términos de integración externa.
-
-#### `detect_link_type(url)`
-
-Usa dos regex para parsear URLs y URIs de Spotify:
-
-```python
-SPOTIFY_RE = re.compile(
-    r'(?:open\.spotify\.com|spotify)[/:]'
-    r'(playlist|episode|track|album)/([a-zA-Z0-9]+)'
-)
-```
+**Importación desde Spotify** — Usa `spotapi` para extraer tracks/playlists/álbumes/episodios y resuelve cada track a YouTube via `search_youtube()`.
 
 Soporta:
 - `https://open.spotify.com/track/XXXX`
@@ -199,147 +155,130 @@ Soporta:
 - `https://open.spotify.com/episode/XXXX`
 - `spotify:track:XXXX` (URI format)
 
-#### `import_from_spotify(url)`
-
-Dispatcher principal:
-1. Detecta tipo de link
-2. Delega a la función específica según tipo
-3. Retorna `(nombre, lista_de_resultados)` o `(None, None)` en error
-
-Cada resultado es un tuple `(titulo_artista_track, youtube_url)`.
-
-#### `_import_playlist(playlist_id)`
-
-1. Usa `spotapi.PublicPlaylist(playlist_id)` para conectar
-2. Obtiene nombre de la playlist
-3. Pagina todos los tracks via `pp.paginate_playlist()` (maneja playlists grandes)
-4. Extrae artista y título de cada track
-5. Llama a `_resolve_and_print()` para búsqueda en YouTube
-
-#### `_import_track(track_id)`
-
-1. Usa `Public.song_info(track_id)` para obtener datos del track
-2. Extrae nombre y primer artista de `trackUnion.firstArtist`
-3. Busca en YouTube con query `"Artista - Track"`
-
-#### `_import_episode(episode_id)`
-
-1. Usa `spotapi.Podcast.get_episode()`
-2. Obtiene nombre del podcast + episodio
-3. Busca en YouTube
-
-#### `_import_album(album_id)`
-
-1. Usa `spotapi.PublicAlbum(album_id)`
-2. Extrae todos los tracks del álbum
-3. Busca cada uno en YouTube con barra de progreso
-
-#### `_resolve_and_print(tracks, content_label)`
-
-Para cada track `(artist, title)`:
-1. Construye query `"Artist - Title"`
-2. Ejecuta `search_youtube(query)` (yt-dlp ytsearch)
-3. Muestra ✓ o ✗ con progreso numérico
-4. Acumula resultados encontrados
-5. Reporta tracks no encontrados al final
+Flujo: detecta tipo de link → importa metadatos → busca en YouTube → retorna lista de `(nombre, url_youtube)` para descargar.
 
 ---
 
-### 4.5 `core/cover.py` (116 líneas)
+### 4.5 `core/cover.py` (~199 líneas)
 
-**Metadatos enriquecidos vía iTunes API** — Mejora la calidad de metadatos post-descarga.
+**Carátulas multi-fallo** — Busca carátulas cuadradas en alta resolución con 3 fuentes en cascada:
 
-#### `get_clean_metadata(info)`
+1. **iTunes Search API** — 5 etapas progresivas:
+   - Artista + Título (exacto)
+   - Solo artista (cualquier canción del mismo artista)
+   - Solo título
+   - Palabras clave (filtra stopwords)
+   - Palabras clave + artista
+2. **Deezer API** — Cover `cover_xl` (1000×1000), sin API key
+3. Ya **no usa YouTube thumbnails** (son rectangulares y se ven feas)
 
-Punto de entrada principal:
-1. Limpia el título YouTube con `_clean_title()`
-2. Consulta iTunes Search API
-3. Si encuentra match → retorna datos reales de iTunes (track, artist, album) + carátula descargada
-4. Si no → retorna datos limpios de YouTube sin carátula
+`_clean_title()` elimina basura de títulos YouTube: `(Official Video)`, `[4K]`, `feat.`, `｜`, `(Letra)`, etc.
 
-#### `_clean_title(title, artist=None)`
-
-Regex que remueve basura típica de títulos de YouTube:
-
-| Patrón | Ejemplo |
-|--------|---------|
-| `(Official Video)` | "Song (Official Video)" → "Song" |
-| `[4K]` / `[HD]` | "Song [4K]" → "Song" |
-| `feat. Artist` | "Song feat. Artist" → "Song" |
-| `ft. Artist` | "Song ft. Artist" → "Song" |
-| `x Artist` / `× Artist` | "Song x Artist" → "Song" |
-| `Artist - ` prefix | "Artist - Song" → "Song" (si coincide con uploader) |
-
-#### `_search_itunes(artist, title)`
-
-1. Construye URL de búsqueda: `https://itunes.apple.com/search?term={query}&limit=5&media=music&entity=song`
-2. Intenta con `"Artist Title"`, fallback a solo `"Title"`
-3. Toma el primer resultado
-4. Escala artwork de 100×100 a 600×600
-5. Retorna `{artist, track, album, art_url}`
-
-#### `_download_cover(art_url, cache_key)`
-
-- Cachea carátulas en `.cover_cache/` local
-- Nombres archivo: `{artist}_{track}.jpg` (URL-encoded)
-- No redescarga si ya existe en caché
+Cachea carátulas en `.cover_cache/` para no redescargar.
 
 ---
 
-### 4.6 `ui/interface.py` (226 líneas)
+### 4.6 `core/metadata_fixer.py` (~608 líneas)
 
-**Capa de presentación** — Toda la UI usa la librería **Rich** para renderizado en terminal.
+**Corrector interactivo de metadatos** — Navegador de archivos + fix individual o por lote.
 
-| Función | Descripción | Elementos Rich usados |
-|---------|-------------|----------------------|
-| `clear()` | Limpia pantalla (compatible Termux) | — |
-| `show_banner()` | Banner estilizado con nombre "T0RD0WNL04D" en binario + créditos | `Panel`, `Align` |
-| `show_menu()` | Menú principal con 11 opciones + emojis | `Table` (box SIMPLE) |
-| `show_info_panel(info)` | Info del video: título, canal, duración, fecha, vistas, likes | `Panel`, `Table.grid` |
-| `show_formats_table()` | Tabla de formatos de audio disponibles | `Panel`, `Table` |
-| `show_video_formats_table()` | Tabla de formatos de video | `Panel`, `Table` |
-| `show_playlist_table()` | Lista de canciones con duración total | `Panel`, `Table` |
-| `show_search_results()` | Resultados de búsqueda YouTube | `Panel`, `Table` |
-| `show_urls_table()` | Lista de URLs a descargar | `Panel`, `Table` |
-| `config_menu()` | Cambiar directorio de descargas | `Panel`, `Prompt.ask` |
+| Función | Descripción |
+|---------|-------------|
+| `_read_tags(filepath)` | Lee metadatos ID3/MP4/FLAC/OGG con mutagen |
+| `_write_tags(filepath, artist, title, album, cover_path)` | Escribe metadatos + carátula |
+| `_guess_artist_title(filepath)` | Adivina artista/título desde nombre de archivo |
+| `scan_for_browser(current)` | Escanea directorio, separa carpetas y archivos de audio |
+| `detect_storage_roots()` | Detecta almacenamiento interno/SD en Termux |
+| `interactive_browser(start_path)` | Navegador interactivo: ver carpetas, previsualizar tags, corregir individual o por lote |
+| `fix_folder(start_path)` | Corrección masiva: escanea todos los archivos, busca carátula vía `_resolve_cover_url()`, aplica metadatos con barra de progreso |
 
-**Paleta de colores:** Tema rojo/negro consistente (`bright_red`, `white`, `yellow`, `green`, `cyan`, `dim`).
+**Tool 1 del menú T00L5RK13.**
 
 ---
 
-### 4.7 `data/history.py` (45 líneas)
+### 4.7 `core/tools_rk13.py` (~623 líneas)
 
-**Persistencia de historial de descargas** en archivo JSON.
+**T00L5RK13 — Suite de herramientas de audio profesional.** Menú con 3 herramientas:
 
-- **Almacenamiento:** `.history.json` en la raíz del proyecto
-- **Formato:** Array JSON, cada entrada con `{titulo, url, formato, fecha}`
-- **Límite:** Máximo 50 entradas (FIFO)
-- **Visualización:** Tabla Rich con últimas 15 descargas
+#### Tool 1 — Corregir Metadatos
+Llama a `interactive_browser()` de `metadata_fixer.py`. Navegación por carpetas, previsualización y corrección de metadatos + carátulas.
 
-```json
-[
-  {
-    "titulo": "Calabria",
-    "url": "https://www.youtube.com/watch?v=...",
-    "formato": "M4A AAC",
-    "fecha": "2026-07-14T12:30:00"
-  }
-]
-```
+#### Tool 2 — Convertir Formato de Audio
+Conversión batch con ffmpeg entre formatos:
+
+| Formato | Codec | Bitrates |
+|---------|-------|----------|
+| MP3 | libmp3lame | Normal 128k / Alta 192k / Máxima 320k |
+| M4A (AAC) | aac | Normal 128k / Alta 192k / Máxima 256k |
+| Opus | libopus | Normal 96k / Alta 128k / Máxima 160k |
+| OGG Vorbis | libvorbis | Normal 128k / Alta 192k / Máxima 256k |
+| FLAC | flac | Lossless |
+
+Flujo:
+1. Navegador interactivo para seleccionar carpeta origen
+2. Resumen de archivos encontrados por extensión
+3. Selección de formato destino y calidad
+4. Crea carpeta nueva `nombreOriginal_formato/`
+5. Convierte cada archivo con barra de progreso
+6. Aplica metadatos + carátula (iTunes multi-fallo)
+7. Opción de eliminar carpeta original al finalizar
+
+#### Tool 3 — Organizar / Deduplicar
+Detección de archivos duplicados en una carpeta:
+
+| Método | Descripción |
+|--------|-------------|
+| Nombre | Compara nombres normalizados (sin extensión, minúsculas, sin espacios extra) |
+| Metadatos | Compara artista + título de tags ID3 |
+| Hash MD5 | Compara hash exacto del contenido del archivo |
+
+Acciones por grupo de duplicados:
+- Conservar el de **mejor bitrate**
+- Conservar el **más pequeño**
+- Conservar un **formato específico** (ej: m4a)
+- **Manual**: elegir qué archivo conservar
 
 ---
 
-### 4.8 `t0rd0wnl04d.py` (369 líneas)
+### 4.8 `ui/interface.py` (~263 líneas)
 
-**Orquestador principal / Entry point** — Loop principal del menú con 11 opciones.
+**Capa de presentación** — Toda la UI usa la librería **Rich**.
 
-#### Estructura del Loop
+| Función | Descripción |
+|---------|-------------|
+| `clear()` | Limpia pantalla (compatible Termux) |
+| `show_banner()` | Banner estilizado con nombre + binario + créditos |
+| `show_menu()` | Menú principal con 12 opciones + emojis |
+| `show_info_panel(info)` | Panel de información del video |
+| `show_formats_table()` | Tabla de formatos de audio |
+| `show_video_formats_table()` | Tabla de formatos de video |
+| `show_playlist_table()` | Lista de canciones con duración total |
+| `show_search_results()` | Resultados de búsqueda YouTube |
+| `show_urls_table()` | Lista de URLs a descargar |
+| `config_menu()` | Cambiar directorio de descargas |
+| `prompt_ask(prompt_text, default="")` | Prompt custom con `input()` plano (evita eco `^M` en Termux) |
+| `press_enter()` | Espera Enter con `input()` plano |
+| `confirm_ask(prompt_text, default=True)` | Confirmación Sí/No con `input()` plano |
+
+**Nota:** Todos los prompts (`prompt_ask`, `confirm_ask`, `press_enter`) usan `input()` de Python plano en vez de `Prompt.ask()`/`Confirm.ask()`/`console.input()` de Rich para evitar el eco `^M` en Termux.
+
+---
+
+### 4.9 `data/history.py` (45 líneas)
+
+**Historial de descargas** en `.history.json`. Máximo 50 entradas FIFO. Cada entrada: `{titulo, url, formato, fecha}`. Visualización: tabla Rich con últimas 15 descargas.
+
+---
+
+### 4.10 `t0rd0wnl04d.py` (~410 líneas)
+
+**Orquestador principal / Entry point** — Loop principal del menú con 12 opciones.
 
 ```
 while True:
     show_banner()
     show_menu()
-    choice = Prompt.ask()
+    choice = prompt_ask()
     ─────────────────────────────────
     choice == "1"  → Spotify (import + download batch)
     choice == "2"  → Buscar YouTube (search + select + download)
@@ -350,65 +289,42 @@ while True:
     choice == "7"  → Lista Videos (playlist URL + format + limit video)
     choice == "8"  → Varios Videos (folder + URLs + format + batch video)
     choice == "9"  → Ver Registro (history.show())
-    choice == "10" → Ajustes (config_menu())
-    choice == "11" → Salir
+    choice == "10" → T00L5RK13 (tools_rk13_menu())
+    choice == "11" → Ajustes App (config_menu())
+    choice == "12" → Salir
 ```
 
 #### Detalle por Opción
 
 **1 — Spotify**
-- Pide URL de Spotify
-- Llama a `import_from_spotify()`
-- Valida que haya resultados
-- Muestra tabla con URLs encontradas
-- Pide confirmación de descarga
-- Pide formato de audio
-- Ejecuta `download_batch()` con URLs resueltas
+Pide URL de Spotify, llama a `import_from_spotify()`, valida resultados, pide confirmación y formato, ejecuta `download_batch()`.
 
 **2 — Buscar YouTube**
-- Pide query de búsqueda
-- Ejecuta `search_youtube()` con spinner de carga
-- Muestra resultados numerados
-- Soporta selección: número individual (`1`), rango (`1-3`), todos (`*`)
-- Descarga simple (1 resultado) o batch (múltiples)
+Pide query, ejecuta `search_youtube()` con spinner, muestra resultados numerados. Soporta selección individual (`1`), rango (`1-3`), todos (`*`).
 
 **3 — Una Canción (Audio)**
-- Pide URL (detecta Spotify y redirige a opción 1)
-- Muestra formatos disponibles
-- Pide directorio personalizado (opcional)
-- Ejecuta `download_single()`
-- Si falla, ofrece reintentar con otro formato
+Pide URL, muestra formatos, directorio personalizado opcional, ejecuta `download_single()`. Si falla, ofrece reintentar con otro formato.
 
 **4 — Lista Audio**
-- Pide URL de playlist
-- Muestra formatos
-- Pide directorio personalizado
-- Pide límite de canciones
-- Ejecuta `download_playlist()`
+Pide URL de playlist, formato, directorio, límite de canciones. Ejecuta `download_playlist()`.
 
 **5 — Varios Audios**
-- Pide nombre de carpeta
-- Loop de ingreso de URLs (termina con "y")
-- Muestra formatos
-- Ejecuta `download_batch()`
+Pide nombre de carpeta, loop de ingreso de URLs, formato. Ejecuta `download_batch()`.
 
 **6, 7, 8 — Video**
-- Idéntico a 3, 4, 5 pero usando `core/video_downloader.py`
+Idéntico a 3, 4, 5 pero usando `core/video_downloader.py`.
 
 **9 — Registro**
-- Muestra historial de descargas
+Muestra historial de descargas.
 
-**10 — Ajustes**
-- Cambia directorio de descargas por defecto
+**10 — T00L5RK13**
+Abre la suite de herramientas profesionales con 3 subherramientas (ver 4.7).
 
-**11 — Salir**
-- Break del loop y mensaje de despedida
+**11 — Ajustes**
+Cambia directorio de descargas por defecto.
 
-#### Manejo de Errores
-
-- Solo `KeyboardInterrupt` capturado a nivel de `main()`
-- Cada opción usa `continue` para volver al menú en lugar de excepciones
-- Mensajes de error en rojo (`[red]`)
+**12 — Salir**
+Break del loop y mensaje de despedida.
 
 ---
 
@@ -436,8 +352,7 @@ core.utils.search_youtube("DMNDS - Calabria")
   ↓
 Retorna (name, [(name, yt_url)])
   ↓
-Usuario confirma descarga
-  ↓ Elige formato (ej: M4A AAC)
+Usuario confirma descarga + formato (ej: M4A AAC)
   ↓
 core/downloader.batch([yt_url], fmt_key, ...)
   ↓ por cada URL
@@ -449,7 +364,7 @@ _run_ytdlp() → subprocess.Popen + barra Rich
   ↓
 _attempt_download() → reintento si falla
   ↓
-_apply_metadata() → mutagen + iTunes cover
+_apply_metadata() → mutagen + cover (iTunes multi-fallo)
   ↓
 history.save()
   ↓
@@ -461,38 +376,28 @@ Resumen: "✓ 1/1 DMNDS - Calabria"
 ## 6. Consideraciones Técnicas Clave
 
 ### 6.1 Sin OOP
-Todo el código es procedural/funcional, sin clases definidas por el usuario (solo se usan objetos de librerías externas como `Console()`, `Panel()`, etc.). La UI se inyecta como módulo global `console = Console()`.
+Todo el código es procedural/funcional, sin clases definidas por el usuario. La UI se inyecta como módulo global `console = Console()`.
 
 ### 6.2 Subprocesos
-yt-dlp se ejecuta como `subprocess.Popen` con:
-- `stdout=subprocess.PIPE, stderr=subprocess.STDOUT` (mezcla stdout/stderr)
-- `text=True, bufsize=1` (línea por línea)
-- Parseo en tiempo real para actualizar barra de progreso
+yt-dlp y ffmpeg se ejecutan como `subprocess.Popen` con stdout parseado línea por línea para barras de progreso en tiempo real.
 
 ### 6.3 API de Spotify no-oficial
-Usa `spotapi`, una librería que reverse-ingeniera la API GraphQL de Spotify (`api-partner.spotify.com/pathfinder/v1/query`). Esto es inherentemente frágil:
-- Los hashes de consultas persistentes (`sha256Hash`) pueden cambiar
-- La estructura de las respuestas puede cambiar (ej: `trackUnion.artists` → `trackUnion.firstArtist`)
-- No hay garantía de disponibilidad
+Usa `spotapi` que reverse-ingeniera la API GraphQL de Spotify. Inherentemente frágil: los hashes de consultas y estructura de respuestas pueden cambiar.
 
-### 6.4 Metadatos híbridos YouTube + iTunes
-Combina dos fuentes para metadatos de audio:
-1. **YouTube** → uploader, título crudo, fecha de subida
-2. **iTunes Search API** → artista real, nombre de álbum, carátula en alta resolución (600×600)
-
-Esto produce tags de mejor calidad que usar solo los datos de YouTube.
+### 6.4 Metadatos híbridos YouTube + iTunes + Deezer
+Combina 3 fuentes para metadatos. Si iTunes no encuentra match exacto, prueba Deezer. Si Deezer falla, busca por artista relacionado en iTunes. No usa YouTube thumbnails (rectangulares).
 
 ### 6.5 Robustez
 - Reintentos automáticos en descargas fallidas
 - Timeouts en consultas a yt-dlp (30s singles, 60s playlists)
 - Fallback para detección de archivos destino
-- Sin embargo: **no hay tests automatizados**, no hay logging estructurado, y los `except Exception` genéricos pueden ocultar bugs
+- Prompts con `input()` plano para evitar problemas de terminal en Termux
 
 ### 6.6 Target Termux
 - Compatible con Android vía Termux
 - Usa `clear` en vez de `cls`
-- Barras de progreso adaptables a terminal angosta (40-60 columnas)
 - Sin dependencias gráficas (solo terminal)
+- Almacenamiento detectado automáticamente (interno/SD)
 
 ---
 
@@ -500,45 +405,35 @@ Esto produce tags de mejor calidad que usar solo los datos de YouTube.
 
 | Área | Problema | Impacto |
 |------|----------|---------|
-| **Tests** | Zero test coverage (unit + integration) | Riesgo alto de regresiones |
-| **Logging** | Usa `console.print()` en vez de módulo `logging` | No hay niveles, rotación, ni formato estructurado |
+| **Tests** | Zero test coverage | Riesgo alto de regresiones |
+| **Logging** | Usa `console.print()` en vez de `logging` | Sin niveles ni rotación |
 | **Manejo de errores** | `except Exception` genéricos en múltiples lugares | Oculta errores específicos |
-| **Configuración** | Solo directorio de descarga. No persiste formato favorito, ni últimas URLs | Experiencia de usuario limitada |
-| **Concurrencia** | Descargas secuenciales con delay de 0.5s | Lento para lotes grandes. Podría usar asyncio/threading |
-| **Dependencia frágil** | `spotapi` no es oficial de Spotify | Cambios en API de Spotify rompen el flujo |
-| **Type hints** | Mayoría del código sin anotaciones de tipo | Menos legible para mantenimiento, sin autocompletado IDE |
-| **Internacionalización** | Solo español, textos hardcodeados | No scalable a otros idiomas |
+| **Configuración** | Solo directorio de descarga. No persiste formato favorito | UX limitada |
+| **Concurrencia** | Descargas secuenciales con delay 0.5s | Lento para lotes grandes |
+| **Dependencia frágil** | `spotapi` no es oficial de Spotify | Cambios en API rompen el flujo |
+| **Type hints** | Mayoría del código sin anotaciones | Menos mantenible |
+| **Internacionalización** | Solo español, textos hardcodeados | No scalable |
 
 ---
 
 ## 8. Perfil para Creador de Contenido
 
-Si un experto en programación quisiera crear contenido basado en este programa:
-
 ### Nichos Potenciales
 - Herramientas prácticas para Android/Termux
-- Descarga de contenido multimedia
-- Automatización de tareas con Python
+- Descarga y procesado de contenido multimedia
+- Automatización con Python
 
 ### Ángulos de Contenido
-- Cómo construir un downloader de YouTube/Spotify desde cero
+- Cómo construir un downloader YouTube/Spotify desde cero
 - Integración de APIs no-oficiales (Spotify reverse engineering)
 - UI en terminal profesional con Rich
 - Post-procesado de metadatos de audio con mutagen
-- Manejo de subprocesos con pipes en tiempo real
+- Suite de herramientas CLI profesionales (T00L5RK13)
 
-### Stack a Destacar
+### Stack
 ```
 Python 3.14  +  yt-dlp  +  Rich  +  mutagen  +  spotapi  +  ffmpeg
 ```
-
-### Ideas para Videos/Tutoriales
-1. "Cómo hacer un downloader de música para Termux en Python"
-2. "Metadatos profesionales con mutagen + iTunes API"
-3. "Construye tu propio spotdl con Python"
-4. "Barras de progreso en terminal con Rich"
-5. "Reverse engineering de APIs: Spotify GraphQL"
-6. "De idea a app funcional: Arquitectura de un downloader"
 
 ---
 
@@ -546,16 +441,18 @@ Python 3.14  +  yt-dlp  +  Rich  +  mutagen  +  spotapi  +  ffmpeg
 
 | Archivo | Líneas | Propósito |
 |---------|--------|-----------|
-| `t0rd0wnl04d.py` | 369 | Entry point, menú principal, orquestación |
+| `t0rd0wnl04d.py` | ~410 | Entry point, menú principal |
 | `core/__init__.py` | 0 | Package marker |
-| `core/downloader.py` | 387 | Motor de descarga de audio |
-| `core/video_downloader.py` | 240 | Motor de descarga de video |
+| `core/downloader.py` | ~391 | Motor de descarga de audio |
+| `core/video_downloader.py` | ~241 | Motor de descarga de video |
 | `core/spotify.py` | 271 | Importación desde Spotify |
-| `core/cover.py` | 116 | Metadatos iTunes + carátulas |
+| `core/cover.py` | ~199 | Carátulas multi-fallo (iTunes → Deezer) |
+| `core/metadata_fixer.py` | ~608 | Corrector interactivo de metadatos |
+| `core/tools_rk13.py` | ~623 | T00L5RK13: conversor + deduplicador |
 | `core/utils.py` | 122 | Utilidades, formatos, wrappers |
 | `ui/__init__.py` | 0 | Package marker |
-| `ui/interface.py` | 226 | Renderizado Rich (UI) |
+| `ui/interface.py` | ~263 | Renderizado Rich + prompts custom |
 | `data/__init__.py` | 0 | Package marker |
 | `data/history.py` | 45 | Historial JSON |
 | `requirements.txt` | ~5 | Dependencias PyPI |
-| **Total** | **~1,400** | |
+| **Total** | **~2,500** | |
